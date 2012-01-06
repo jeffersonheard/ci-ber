@@ -1,0 +1,42 @@
+{% extends 'userdata/main-w-small-header.html' %}
+{% block titleblock %}RENCI/NARA CI-BER Record Geolocator{% endblock %}
+ 
+<!-- CSS Files --> 
+{% block scripttags %}
+<link type="text/css" href="{{MEDIA_URL}}ciber/css/base.css" rel="stylesheet" /> 
+<link type="text/css" href="{{MEDIA_URL}}ciber/css/Treemap.css" rel="stylesheet" /> 
+<link type="text/css" href="http://openlayers.org/dev/theme/default/style.css" rel="stylesheet" /> 
+<link type="text/css" href="http://openlayers.org/dev/theme/default/google.css" rel="stylesheet" /> 
+<link type="text/css" href="{{ MEDIA_URL }}media/css/custom-theme/jquery-ui-1.8.5.custom.css" rel="stylesheet" />	
+<script type="text/javascript" charset="utf-8" src='{{ MEDIA_URL }}media/js/jquery-1.4.2.min.js'></script>
+<script type="text/javascript" charset="utf-8" src='{{ MEDIA_URL }}media/js/jquery-ui-1.8.5.custom.min.js'></script>
+<script type="text/javascript" charset="utf-8" src='{{ MEDIA_URL }}media/js/jquery.json-2.2.min.js'></script>
+<script src="http://maps.google.com/maps/api/js?v=3.2&sensor=false"></script> 
+<script src='http://openlayers.org/dev/OpenLayers.js'></script>
+<!--[if IE]><script language="javascript" type="text/javascript" src="{{MEDIA_URL}}ciber/jit/Extras/excanvas.js"></script><![endif]--> 
+<script language="javascript" type="text/javascript" src="{{MEDIA_URL}}ciber/jit/jit-yc.js"></script> 
+<script language="javascript" type="text/javascript" src="{{MEDIA_URL}}ciber/tm.js"></script> 
+{% endblock %}
+
+{% block content %}
+<h1>Metadata insight tool for NARA GIS records</h1>
+<div id="container"> 
+ 
+<div id="left-container"> 
+<div id='map' style='border:1px solid black'></div> 
+</div> 
+ 
+<div id="center-container"> 
+    <div id="infovis"></div>    
+</div> 
+ 
+<div id="right-container"> 
+ 
+<div id="inner-details"></div> 
+ 
+</div> 
+ 
+<div id="log"></div> 
+</div> 
+<div>This prototype visualization allows a user to explore the GIS holdings in the NARA/RENCI CI-BER Testbed.  The indexing process is still ongoing so please do check back with us to see updates.  Hovering over a box in the treemap will show the bounding box of all the records in the treemap, to give you an idea of what kind of space that box covers.  Clicking on the box will drill down to the next level.  At the highest level are the record groups we have indexed.  At the next level are the series within those record groups.  Beyond that are the subdirectories in the series, and below that the individual GIS files.</div>
+{% endblock %}

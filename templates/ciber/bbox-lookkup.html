@@ -1,0 +1,315 @@
+<!DOCTYPE html> 
+<html> 
+	<head> 
+		<title>CIBER Geographic Records Prototype</title> 
+		<meta name="apple-mobile-web-app-capable" content="yes" /> 
+		<link rel="stylesheet" href="http://code.jquery.com/mobile/1.0a4/jquery.mobile-1.0a4.min.css" />
+		<link rel='stylesheet' href='http://openlayers.org/dev/theme/default/google.css' />
+		<script type="text/javascript" src="http://code.jquery.com/jquery-1.5.2.min.js"></script>
+		<script type="text/javascript" src="http://code.jquery.com/mobile/1.0a4/jquery.mobile-1.0a4.min.js"></script>
+		<script type='text/javascript' src='http://maps.google.com/maps/api/js?v=3.3&amp;sensor=false'></script>
+		<script type='text/javascript' src='http://openlayers.org/dev/OpenLayers.js'></script>
+		<script type='text/javascript'>
+		var results = null, recordgroups=null, serieses=null, files=null, selectedRg=null, selectedSeries=null, selectedFile=null;
+		var map;
+		var baselayer;
+		var selectionlayer;
+		var selectionControl, navigationControl, iOSControl;
+		var currentSelection;
+		var currentRecordArea;
+		var currentDisplaySet;
+		var control;
+
+		function descendRG(rg) {
+			// TODO add a feature in a different color showing the whole extent of the record group we're descending into.
+			selectedRg = rg;
+				$.getJSON("/ciber/prototype12/getSeriesForBox", {
+								rg: rg,
+								x1: currentSelection.geometry.bounds.left,
+								y1: currentSelection.geometry.bounds.bottom,
+								x2: currentSelection.geometry.bounds.right,
+								y2: currentSelection.geometry.bounds.top},
+								seriesReceived);
+		}
+
+		function descendSer(ser) {
+			// TODO add a feature in a different color showing the whole extent of the series we're descending into.
+			selectedSeries = ser;
+				$.getJSON("/ciber/prototype12/getFilesForBox", {
+								ser: ser,
+								begin:0,
+								num:15,
+								x1: currentSelection.geometry.bounds.left,
+								y1: currentSelection.geometry.bounds.bottom,
+								x2: currentSelection.geometry.bounds.right,
+								y2: currentSelection.geometry.bounds.top},
+								filesReceived);
+		}
+
+		function rgsReceived(items) {
+			var name;
+			if (items.length > 0) {
+				$("#searchresults > li").detach();
+				results = items; // global var
+				recordgroups = items;
+
+				for(name in recordgroups) {
+					var rg = recordgroups[name];
+					var domitem = $("<li data-theme='c' ></li>");
+					var link = $("<a onclick='descendRG(\"" + rg.name + "\")'></a>");
+					domitem.append(link);
+					link.append($("<h3 class='ui-li-heading'>" + rg.name + "</h3>"));
+					link.append($("<p class='ui-li-desc'>" + rg.filepath + "</p>"));
+					link.append($("<span class='ui-li-count ui-btn-up-c ui-btn-corner-all'>" + rg.seriescount + "</span>"));
+					$("#searchresults").append(domitem);
+					$("#searchresults").listview("refresh");
+				}
+			} else {
+				$("#searchresults > li").detach();
+				$("#searchresults").append($("<li>No Results</li>"));
+			}
+				
+		}
+
+		function seriesReceived(items) {
+			// TODO replace the search results with the list of series. add a button to ascend as well.
+			var name;
+			if (items.length > 0) {
+				$("#searchresults > li").detach();
+				results = items; // global var
+				serieses = items;
+
+				var back = $("<li data-theme='a'></li>");
+				back.append($("<a onclick='rgsReceived(recordgroups)'>" + selectedRg + "</a>"));
+				$("#searchresults").append(back);
+
+				for(name in serieses) {
+					var rg = serieses[name];
+					var domitem = $("<li data-theme='c' ></li>");
+					var link = $("<a onclick='descendSer(\"" + rg.name + "\")'></a>");
+					domitem.append(link);
+					link.append($("<h3 class='ui-li-heading'>" + rg.name + "</h3>"));
+					link.append($("<p class='ui-li-desc'>" + rg.filepath + "</p>"));
+					link.append($("<span class='ui-li-count ui-btn-up-c ui-btn-corner-all'>" + rg.filecount + "</span>"));
+					$("#searchresults").append(domitem);
+				}
+			} else {
+				$("#searchresults > li").detach();
+				$("#searchresults").append($("<li>No Results</li>"));
+			}
+			$("#searchresults").listview("refresh");
+		}
+
+		function filesReceived(items, noappend) {
+				// TODO replace the search results with a list of files.  Distinguish
+				// by vector or raster files.  Also when the file is clicked, the file's
+				//area should be zoomed in on and a feature added. Add a button to ascend as well.
+			var name;
+			if (items.length > 0) {
+				if(noappend) { 
+					$("#searchresults > li").detach();
+					files = items;
+				}
+				else {
+					files = files.concat(items);
+				}
+
+				var back = $("<li data-theme='a'></li>");
+				back.append($("<a onclick='seriesReceived(serieses)'>" + selectedSeries + "</a>"));
+				$("#searchresults").append(back);
+
+				for(name in items) {
+					var rg = items[name];
+					var domitem = $("<li data-theme='c' ></li>");
+					var link = $("<a onclick='detailFile(" + name + ")'></a>");
+					domitem.append(link);
+					var shortname = rg.name.split("%");
+					shortname = shortname[shortname.length-1];
+					shortname = shortname.split("/");
+					shortname = shortname[shortname.length-1];
+					link.append($("<h3 class='ui-li-heading'>" + shortname + "</h3>"));
+					link.append($("<p class='ui-li-desc'>" + rg.filepath + "</p>"));
+					$("#searchresults").append(domitem);
+					link.append($("<span class='ui-li-count ui-btn-up-c ui-btn-corner-all'>" + rg.type + "</span>"));
+				}
+			} else {
+				$("#searchresults > li").detach();
+				$("#searchresults").append($("<li>No Results</li>"));
+			}
+			$("#searchresults").listview("refresh");
+		}
+
+		function detailFile(ix) {
+			var file = files[ix];
+			var f = file;
+			var d = $("#details");
+			$("#map").hide();
+			$('#details > *').detach();
+			$("#details").show();
+			var shortname = file.name.split("%");
+			shortname = shortname[shortname.length-1];
+			shortname = shortname.split("/");
+			shortname = shortname[shortname.length-1];
+			if(file.type === 'raster') {
+				d.append($("<h1>Raster image</h1>"));
+				d.append($("<hr/>"));
+				d.append($("<h2>" + shortname + "</h3>"));
+				d.append($("<p>" + f.filepath + "</p>"));
+				d.append($("<h3>Geographic information</h3>"));
+			        d.append($("<p>Projection Information</p>"));
+				d.append($("<pre>" + f.projection + "</pre>"));
+				d.append($("<p>West " + f.bbox4326[0] + "&deg; South: " + f.bbox4326[1] + "&deg; East: " + f.bbox4326[2] + "&deg; North: " + f.bbox4326[3] + "&deg;</p>"));
+				d.append($("<h3>Metadata</h3>"));
+				var list = $("<ul></ul>");
+				for(var i in f.metadata) { if(f.metadata.hasOwnProperty(i)) {
+					list.append("<li>" + i + " :: " + f.metadata[i] + "</li>");
+				}}
+				d.append(list);
+				var olist = $("<ul></ul>");
+				for(i in f.band_metadata) { 
+					list = $("<ul></ul>");
+					list.append("<li><strong>Band " + i + "</strong></li>");
+					for(var j in f.metadata) { if(f.band_metadata[i].hasOwnProperty(j)) {
+						list.append("<li>" + j + " :: " + f.band_metadata[i][j] + "</li>");
+					}}
+					olist.append(list);
+				}
+				d.append(olist);
+			}
+			if(file.type ==='features') {
+				d.append($("<h1>Feature collection</h1>"));
+				d.append($("<hr/>"));
+				d.append($("<h2>" + shortname + "</h3>"));
+				d.append($("<p>" + f.filepath + "</p>"));
+				d.append($("<h3>Geographic information</h3>"));
+			        d.append($("<p>Projection Information</p>"));
+				d.append($("<pre>" + f.projection + "</pre>"));
+				d.append($("<p>West " + f.bbox4326[0] + "&deg; South: " + f.bbox4326[1] + "&deg; East: " + f.bbox4326[2] + "&deg; North: " + f.bbox4326[3] + "&deg;</p>"));
+				d.append($("<h3>Metadata</h3>"));
+				var list = $("<ul></ul>");
+				for(var i in f.attribute_names) { if(f.attributes.hasOwnProperty(i)) {
+					list.append("<li>" + f.attributes[i] + "</li>");
+				}}
+				d.append(list);
+				var olist = $("<ul></ul>");
+				for(i in f.layers) { 
+					list = $("<ul></ul>");
+					olist.append($("<li><strong>Layer " + i + "</strong></li>"));
+					olist.append($("<li><strong>Geometry Type :: " + f.layers[i].geometry_type + "</strong></li>"));
+					olist.append($("<li><strong>Feature Count :: " + f.layers[i].feature_count + "</strong></li>"));
+					olist.append($("<li><strong>Attributes:</strong></li>"));
+					for(var j in f.layers[i].attributes ) { 
+						list.append("<li>" + f.layers[i].attributes[j][0] + " :: " + f.layers[i].attributes[j][1] + "</li>");
+					}
+					olist.append(list);
+				}
+				d.append(olist);
+			}
+		}
+
+		function moreFiles() { 
+
+		}
+$(function() {
+		results = null;
+		map = new OpenLayers.Map("map", {
+						//maxExtent: new OpenLayers.Bounds(-20037508.3427892,-20037508.3427892,20037508.3427892,20037508.3427892), 
+						//numZoomLevels:18, 
+						//maxResolution:156543.0339, 
+					    	units:'m', 
+						projection: "EPSG:900913",
+						displayProjection: new OpenLayers.Projection("EPSG:4326"), 
+						controls: []});
+
+		baselayer = new OpenLayers.Layer.Google("Google Maps", {type: google.maps.MapTypeId.HYBRID});
+		selectionlayer = new OpenLayers.Layer.Vector("Selection");
+		currentSelection = null;
+		currentDisplaySet = null;
+		control = new OpenLayers.Control();
+		
+		OpenLayers.Util.extend(control, {
+			draw: function () {
+				    // this Handler.Box will intercept the shift-mousedown
+				    // before Control.MouseDefault gets to see it
+				    this.box = new OpenLayers.Handler.Box( control,
+							{"done": this.notice}, {});
+				    this.box.activate();
+			},
+
+			notice: function (bounds) {
+				var ll1 = map.getLonLatFromViewPortPx(new OpenLayers.Pixel(bounds.left, bounds.bottom));
+				var ll2 = map.getLonLatFromViewPortPx(new OpenLayers.Pixel(bounds.right, bounds.top));
+				var poly = new OpenLayers.Bounds();
+				poly.extend(ll1);
+				poly.extend(ll2);
+				poly = poly.toGeometry();
+				poly.calculateBounds();
+				var feature = new OpenLayers.Feature.Vector(poly);
+				var selLayer = map.getLayersByName("Selection")[0];
+				if(currentSelection != null) {
+					selLayer.removeFeatures([currentSelection]);
+				}
+				currentSelection = feature;
+				selLayer.addFeatures([currentSelection]);
+				var bbox4326 = currentSelection.geometry.bounds.transform(map.getProjectionObject(), new OpenLayers.Projection("EPSG:4326"));
+				$.getJSON('/ciber/prototype12/getRGsForBox', {
+								x1: bbox4326.left,
+								y1: bbox4326.bottom,
+								x2: bbox4326.right,
+								y2: bbox4326.top},
+								rgsReceived);
+			}
+		});
+
+		map.addLayers([baselayer,selectionlayer]);
+		map.zoomToMaxExtent();
+		map.zoomTo(2);
+
+		selectionControl = control;
+		navigationControl = new OpenLayers.Control.Navigation({documentDrag:true, zoomBoxEnabled:false, zoomWheelEnabled:true, handleRightClicks:true, autoActivate:true});
+		iOSControl = new OpenLayers.Control.TouchNavigation();
+		map.addControls([selectionControl, navigationControl, iOSControl]);
+
+		$("#activateselect").change(function() {
+				$("#details > *").detach();
+				$("#details").hide();
+				$("#map").show();
+				switch($("#activateselect").val()) {
+						case "on":
+							selectionControl.activate();
+							navigationControl.deactivate();
+							iOSControl.deactivate();
+							break;
+						case "off":
+							selectionControl.deactivate();
+							navigationControl.activate();
+							iOSControl.activate();
+							break;
+				}
+				return true;
+		}); // activate select checkbox state change
+});
+		</script>
+</head> 
+<body>
+	<div data-role='page'>
+		<div data=role='content'>
+			<div class='ui-grid-a'>
+				<div class='ui-block-a' style='width:324px'>
+					<div data-role='fieldcontain' style='padding-left:3px'>
+						<select name='activateselect' id='activateselect' data-role='slider'>
+							<option value='off'>Navigate</option>
+							<option value='on'>Select</option>
+						</select>
+					</div>
+					<ul id='searchresults' data-role='listview'><li>Search Results...</li></ul>
+				</div>
+				<div class='ui-block-b' style='width:700px'>
+					<div id='map' style='width:700px;height:760px;top:0;left:324px'></div>
+					<div id='details' style='border:1px solid #333;padding:5px'></div>
+				</div>
+			</div>
+		</div>
+	</div>
+</body>
+</html>
